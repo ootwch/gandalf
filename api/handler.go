@@ -73,12 +73,15 @@ func SetupRouter() *pat.Router {
 	router.Post("/repository/{name:[^/]*/?[^/]+}/commit", http.HandlerFunc(commit))
 	router.Get("/repository/{name:[^/]*/?[^/]+}/logs", http.HandlerFunc(getLogs))
 	router.Post("/repository/grant", http.HandlerFunc(grantAccess))
+	router.Post("/repository/{name:[^/]*/?[^/]+}/contents", http.HandlerFunc(setFileContents))
+	router.Delete("/repository/{name:[^/]*/?[^/]+}/contents", http.HandlerFunc(deleteFile))
 	router.Post("/repository", http.HandlerFunc(newRepository))
 	router.Get("/repository/{name:[^/]*/?[^/]+}", http.HandlerFunc(getRepository))
 	router.Delete("/repository/{name:[^/]*/?[^/]+}", http.HandlerFunc(removeRepository))
 	router.Put("/repository/{name:[^/]*/?[^/]+}", http.HandlerFunc(updateRepository))
 	router.Get("/healthcheck", http.HandlerFunc(healthCheck))
 	router.Post("/hook/{name}", http.HandlerFunc(addHook))
+
 	return router
 }
 
@@ -394,7 +397,7 @@ func getFileContents(w http.ResponseWriter, r *http.Request) {
 		ref = "master"
 	}
 	if path == "" {
-		err := fmt.Errorf("Error when trying to obtain an uknown file on ref %s of repository %s (path is required).", ref, repo)
+		err := fmt.Errorf("Error when trying to obtain an unknown file on ref %s of repository %s (path is required).", ref, repo)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -407,6 +410,245 @@ func getFileContents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(contents)))
 	w.Write(contents)
 }
+
+func deleteFile(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get(":name")
+
+	//_, header, err := r.FormFile("file")
+
+
+
+	data := map[string]string{
+		"ref":             "",
+		"message":         "",
+		"author-name":     "",
+		"author-email":    "",
+		"committer-name":  "",
+		"committer-email": "",
+		"path":            "",
+	}
+
+
+	for key := range(data) {
+		v := r.URL.Query().Get(key)
+		if v != "" {
+			data[key] = v
+		}
+		if data[key] == "" {
+			err := fmt.Errorf("Error when trying to delete file on ref %s of repository %s (%s is required).", data["ref"], repo, key)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+
+
+	commit := repository.GitCommit{
+		Branch:  data["ref"],
+		Message: data["message"],
+		Author: repository.GitUser{
+			Name:  data["author-name"],
+			Email: data["author-email"],
+		},
+		Committer: repository.GitUser{
+			Name:  data["committer-name"],
+			Email: data["committer-email"],
+		},
+	}
+
+
+
+
+
+	result, err := repository.DeleteFile(repo, data["path"], commit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Write([]byte(result))
+
+
+
+}
+
+func setFileContents(w http.ResponseWriter, r *http.Request) {
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Got error while parsing multipart body: %s (%s)",err.Error(), header.Filename), http.StatusBadRequest)
+		return
+	}
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Got error while extracting file from multipart body: %s (%s)",err.Error(), header.Filename), http.StatusBadRequest)
+		return
+	}
+
+
+	repo := r.URL.Query().Get(":name")
+
+
+
+
+	data := map[string]string{
+		"ref":             "",
+		"message":         "",
+		"author-name":     "",
+		"author-email":    "",
+		"committer-name":  "",
+		"committer-email": "",
+		"path":            "",
+	}
+
+	//json_err := json.NewDecoder(r.Body).Decode(&data)
+	/*
+	if err := parseBody(r.Body, &data); err != nil {
+		http.Error(w, "Got error while parsing body: "+err.Error(), http.StatusBadRequest)
+		return
+	}*/
+/*
+	if json_err != nil {
+		body_string, _ := ioutil.ReadAll(r.Body)
+		http.Error(w, fmt.Sprintf("Got error while parsing body: %s (%s)", json_err.Error(), string(body_string)+"::"+"header"+"::"+string(content)), http.StatusBadRequest)
+		return
+	}
+*/
+	st := ">>>>    "
+	for k,v := range(data) {
+		st += k + ":" + v + " "
+	}
+
+
+	for key := range(data) {
+		v := header.Header.Get(key)
+		if v != "" {
+			data[key] = v
+		}
+		if data[key] == "" {
+			err := fmt.Errorf("Error when trying to commit file on ref %s of repository %s (%s is required).  %s", data["ref"], repo, key, st)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+
+
+	commit := repository.GitCommit{
+		Branch:  data["ref"],
+		Message: data["message"],
+		Author: repository.GitUser{
+			Name:  data["author-name"],
+			Email: data["author-email"],
+		},
+		Committer: repository.GitUser{
+			Name:  data["committer-name"],
+			Email: data["committer-email"],
+		},
+	}
+
+
+
+
+	_, err = repository.SetFileContents(repo, data["path"], content, commit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	//w.Header().Set("Content-Type", getMimeType(path, contents))
+	//w.Header().Set("Content-Length", strconv.Itoa(len(contents)))
+	//w.Write(contents)
+}
+/*
+
+func setFileContentsNoForm(w http.ResponseWriter, r *http.Request) {
+
+	repo := r.URL.Query().Get(":name")
+
+*/
+/*
+	path := r.URL.Query().Get("path")
+	ref := r.URL.Query().Get("ref")
+	message := r.URL.Query().Get("message")
+	content := r.URL.Query().Get("content")
+	if ref == "" {
+		ref = "master"
+	}
+*//*
+
+*/
+/*
+	var usr jsonUser
+	if err := parseBody(r.Body, &usr); err != nil {
+		http.Error(w, "Got error while parsing body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+*//*
+
+	data := map[string]string{
+		"branch":          "master", //default value
+		"message":         "",
+		"author-name":     "",
+		"author-email":    "",
+		"committer-name":  "",
+		"committer-email": "",
+		"path":            "",
+		"content":         "",
+	}
+
+	json_err := json.NewDecoder(r.Body).Decode(&data)
+	*/
+/*
+	if err := parseBody(r.Body, &data); err != nil {
+		http.Error(w, "Got error while parsing body: "+err.Error(), http.StatusBadRequest)
+		return
+	}*//*
+
+
+	if json_err != nil {
+		http.Error(w, "Got error while parsing body: "+json_err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	st := ">>>>    "
+	for k,v := range(data) {
+		st += k + ":" + v + " "
+	}
+
+
+	for key := range data {
+		if data[key] == "" {
+			err := fmt.Errorf("Error when trying to commit file on ref %s of repository %s (%s is required).  %s", data["branch"], repo, key, st)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+
+
+	commit := repository.GitCommit{
+		Branch:  data["branch"],
+		Message: data["message"],
+		Author: repository.GitUser{
+			Name:  data["author-name"],
+			Email: data["author-email"],
+		},
+		Committer: repository.GitUser{
+			Name:  data["committer-name"],
+			Email: data["committer-email"],
+		},
+	}
+
+
+	_, err := repository.SetFileContents(repo, data["path"], []byte(data["content"]), commit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	//w.Header().Set("Content-Type", getMimeType(path, contents))
+	//w.Header().Set("Content-Length", strconv.Itoa(len(contents)))
+	//w.Write(contents)
+}
+*/
 
 func getArchive(w http.ResponseWriter, r *http.Request) {
 	repo := r.URL.Query().Get(":name")
@@ -448,13 +690,18 @@ func getTree(w http.ResponseWriter, r *http.Request) {
 	repo := r.URL.Query().Get(":name")
 	path := r.URL.Query().Get("path")
 	ref := r.URL.Query().Get("ref")
+	mode := r.URL.Query().Get("mode")
+
 	if ref == "" {
-		ref = "master"
+		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s). %s", path, ref, repo, "ref missing", r.URL.String())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+		// ref = "master"
 	}
 	if path == "" {
 		path = "."
 	}
-	tree, err := repository.GetTree(repo, ref, path)
+	tree, err := repository.GetTree(repo, ref, path, mode)
 	if err != nil {
 		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -462,7 +709,7 @@ func getTree(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := json.Marshal(tree)
 	if err != nil {
-		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		err := fmt.Errorf("Error when trying to marshal tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -531,7 +778,7 @@ func commit(w http.ResponseWriter, r *http.Request) {
 	}
 	form := r.MultipartForm
 	data := map[string]string{
-		"branch":          "",
+		"ref":          "",
 		"message":         "",
 		"author-name":     "",
 		"author-email":    "",
@@ -572,7 +819,7 @@ func commit(w http.ResponseWriter, r *http.Request) {
 
 func getLogs(w http.ResponseWriter, r *http.Request) {
 	repo := r.URL.Query().Get(":name")
-	ref := r.URL.Query().Get("ref")
+	ref := r.URL.Query().Get("branch")
 	path := r.URL.Query().Get("path")
 	total, err := strconv.Atoi(r.URL.Query().Get("total"))
 	if err != nil {

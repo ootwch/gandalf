@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"bytes"
+	"sync"
 
 	"github.com/tsuru/config"
 	"github.com/tsuru/gandalf/db"
@@ -372,8 +374,11 @@ const (
 
 type ContentRetriever interface {
 	GetContents(repo, ref, path string) ([]byte, error)
+	SetContents(repo, path string, content []byte, commit GitCommit) (string, error)
+	DeleteFile(repo, path string, commit GitCommit) (string, error)
+
 	GetArchive(repo, ref string, format ArchiveFormat) ([]byte, error)
-	GetTree(repo, ref, path string) ([]map[string]string, error)
+	GetTree(repo, ref, path, mode string) ([]map[string]string, error)
 	GetForEachRef(repo, pattern string) ([]Ref, error)
 	GetBranches(repo string) ([]Ref, error)
 	GetDiff(repo, lastCommit, previousCommit string) ([]byte, error)
@@ -394,7 +399,7 @@ type GitContentRetriever struct{}
 func (*GitContentRetriever) GetContents(repo, ref, path string) ([]byte, error) {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
-		return nil, fmt.Errorf("Error when trying to obtain file %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		return nil, fmt.Errorf("Error running git (%s) (%s).", err, err.(*exec.ExitError).Stderr)
 	}
 	cwd := barePath(repo)
 	repoExists, err := exists(cwd)
@@ -405,7 +410,7 @@ func (*GitContentRetriever) GetContents(repo, ref, path string) ([]byte, error) 
 	cmd.Dir = cwd
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("Error when trying to obtain file %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		return nil, fmt.Errorf("Error when trying to obtain file %s on ref %s of repository %s (%s) (%s).", path, ref, repo, err, err.(*exec.ExitError).Stderr,)
 	}
 	return out, nil
 }
@@ -439,22 +444,31 @@ func (*GitContentRetriever) GetArchive(repo, ref string, format ArchiveFormat) (
 	return out, nil
 }
 
-func (*GitContentRetriever) GetTree(repo, ref, path string) ([]map[string]string, error) {
+func (*GitContentRetriever) GetTree(repo, ref, path, mode string) ([]map[string]string, error) {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
-		return nil, fmt.Errorf("Error when trying to obtain tree %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		return nil, fmt.Errorf("Error when trying to find tree %s on ref %s of repository %s (%s).", path, ref, repo, err)
 	}
 	cwd := barePath(repo)
 	repoExists, err := exists(cwd)
 	if err != nil || !repoExists {
 		return nil, fmt.Errorf("Error when trying to obtain tree %s on ref %s of repository %s (Repository does not exist).", path, ref, repo)
 	}
-	cmd := exec.Command(gitPath, "ls-tree", "-r", ref, path)
+	var tree_parameter string
+	if strings.Contains(mode, "tree") {
+		tree_parameter = "-rt" // also show tree objects
+	} else {
+		tree_parameter = "-r" // default
+	}
+
+	cmd := exec.Command(gitPath, "ls-tree", tree_parameter, ref, path) // also show tree objects
+
 	cmd.Dir = cwd
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("Error when trying to obtain tree %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		return nil, fmt.Errorf("Error when trying to execute ls-tree %s in %s on ref %s of repository %s (%s). '%s'", path, cmd.Dir, ref, repo, err, err.Error())
 	}
+	log.Debugf("tree_parameter: %s ref: %s path: %s", tree_parameter, ref, path)
 	lines := strings.Split(string(out), "\n")
 	objectCount := 0
 	for _, line := range lines {
@@ -684,6 +698,310 @@ func (*GitContentRetriever) Commit(cloneDir, message string, author, committer G
 	return nil
 }
 
+func (*GitContentRetriever) DeleteFile(repo, path string, commit GitCommit) (string, error) {
+
+	logstring := "File to be deleted: " + "path" + "\n"
+
+	gitPath, err := exec.LookPath("git")
+	repo_path := barePath(repo)
+
+	var tree_hash string
+
+	// git read-tree #branch  Need to ensure we have the correct tree?
+	cmd_read_tree := exec.Command(gitPath, "read-tree", commit.Branch)
+	cmd_read_tree.Dir = repo_path
+
+	// remove file from staging area (index)
+	cmd_delete := exec.Command(gitPath, "rm", "--cached", "-r", path)
+	cmd_delete.Dir = repo_path
+
+	// git write-tree create/updates the tree (directory) entries => TREE_SHA
+	cmd_write_tree := exec.Command(gitPath, "write-tree")
+	cmd_write_tree.Dir = repo_path
+
+	// If the requested branch does not exist, create it.
+	cmd_check_branch := exec.Command(gitPath, "rev-parse", "--verify", commit.Branch)
+	cmd_check_branch.Dir = repo_path
+
+	// Protected by mutex
+		var staging_mutex = &sync.Mutex{}
+
+
+		/* The next part has to be atomic, due to git only having one index/staging area */
+
+		staging_mutex.Lock()
+		defer staging_mutex.Unlock() //ensure unlocking
+
+		current_revision_byte, err := cmd_check_branch.Output()
+		current_revision := strings.TrimSpace(string(current_revision_byte))
+		logstring += fmt.Sprintf("Current revision for branch %s: %s\n", commit.Branch, current_revision)
+
+		// If branch does not exist, error.
+		if current_revision == "" {
+			return "", fmt.Errorf("Error deleting file. Branch does not exist (%s)\n%s", err, logstring)
+		} else {
+			// Read tree for given branch
+			_, err = cmd_read_tree.Output()
+			if err != nil {
+				return "", fmt.Errorf("Error reading tree for branch %s (%s)\n%s", commit.Branch, err, logstring)
+			}
+		}
+
+		_, err = cmd_delete.Output()
+		if err != nil {
+			return "", fmt.Errorf("Error deleting file from index for branch %s (%s) (%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+		}
+
+		// git write-tree create/updates the tree (directory) entries => TREE_SHA
+
+		tree_hash_byte, err := cmd_write_tree.Output()
+		tree_hash = strings.TrimSpace(string(tree_hash_byte))
+
+		logstring += fmt.Sprintf("TREEHASH: <%s>\n", tree_hash)
+
+		if err != nil {
+			return "", fmt.Errorf("Delete file error: Error writing tree for branch %s (%s)\n%s", commit.Branch, err, logstring)
+		}
+		// staging_mutex.Unlock() // free the staging area - it is not needed for the remaining steps
+	// End mutex
+
+	// TODO: deferring the unlock does not really work... have to fix UNLOCK of UNLOCKED mutex is not good
+
+	// git commit-tree #TREE_SHA -m "Second Commit to root?" -p #PARENT_SHA
+	var cmd_commit *exec.Cmd
+	if current_revision == "" { // TODO: Not reachable
+		cmd_commit = exec.Command(gitPath, "commit-tree", tree_hash, "-m", fmt.Sprintf(`"%s"`, commit.Message))
+	} else {
+		cmd_commit = exec.Command(gitPath, "commit-tree", tree_hash, "-m", fmt.Sprintf(`"%s"`, commit.Message), "-p", current_revision)
+	}
+
+
+	cmd_commit.Dir = repo_path
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("GIT_COMMITTER_NAME=%s", commit.Committer.Name))
+	env = append(env, fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", commit.Committer.Email))
+	env = append(env, fmt.Sprintf("GIT_AUTHOR_NAME=%s", commit.Committer.Name))
+	env = append(env, fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", commit.Committer.Email))
+	cmd_commit.Env = env
+
+	commit_hash_byte, err := cmd_commit.Output()
+	commit_hash := strings.TrimSpace(string(commit_hash_byte))
+
+	logstring += fmt.Sprintf("Commit hash: %s", commit_hash)
+
+	if err != nil {
+		return "", fmt.Errorf("Error committing to branch %s (%s) (%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+	}
+
+
+
+
+	// Set #branch to newest commit (create branch if needed)
+	// git update-ref refs/heads/master <newvalue> <oldvalue>
+	// the git command verifies that the branch is only created if it does not exist - perhaps useless double-checking?
+	var cmd_update_ref *exec.Cmd
+	if current_revision == "" {
+		cmd_update_ref = exec.Command(gitPath, "update-ref", fmt.Sprintf("refs/heads/%s", commit.Branch), commit_hash, "")
+	} else {
+		cmd_update_ref = exec.Command(gitPath, "update-ref", fmt.Sprintf("refs/heads/%s", commit.Branch), commit_hash, current_revision)
+	}
+
+	cmd_update_ref.Dir = repo_path
+
+	_, err = cmd_update_ref.Output()
+
+	if err != nil {
+		return "", fmt.Errorf("Error creating/updating branch %s (%s)\n(%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+	}
+
+	//return "", fmt.Errorf("Error creating/updating branch %s (%s)\n(%s)\n%s", commit.Branch, err, "", logstring)
+
+	return commit_hash, nil
+
+
+}
+
+
+func (*GitContentRetriever) SetContents(repo, path string, content []byte, commit GitCommit) (string, error) {
+	// git hash --stdin -w creates the file object => FILE_SHA
+	// ==> LOCK
+	// git read-tree #branch  Need to ensure we have the correct tree?
+	// git update-index --add --cacheinfo 100644 #FILE_SHA path/file.txt registers it
+	// git write-tree create/updates the tree (directory) entries => TREE_SHA
+	// ==> RELEASE LOCK
+	// git commit-tree #TREE_SHA -m "Second Commit to root?" -p #PARENT_SHA
+	// Set #branch to newest commit
+
+	gitPath, err := exec.LookPath("git")
+	repo_path := barePath(repo)
+
+
+	logstring := gitPath + " " + repo_path + " " + string(content) + "\n"
+	logstring += "Starting SetContents\n"
+
+	cmdOutput := &bytes.Buffer{}
+	cmdError := &bytes.Buffer{}
+
+	cmd_hash := exec.Command( gitPath, "hash-object", "--stdin", "-w")
+	cmd_hash.Dir = repo_path
+	cmd_hash.Stdout = cmdOutput
+	cmd_hash.Stderr = cmdError
+	cmdInPipe, err := cmd_hash.StdinPipe()
+
+	if err != nil {
+		logstring += fmt.Sprintf("PIPE<ERR: %s", err)
+	}
+
+	err = cmd_hash.Start()
+
+	if err != nil {
+		logstring += fmt.Sprintf("STARTERR: %s", err)
+	}
+
+	// Send content to pipe (git hash-object) and close pipe
+	cmdInPipe.Write([]byte(content))
+	cmdInPipe.Close()
+	err = cmd_hash.Wait()
+
+	if err != nil {
+		logstring += fmt.Sprintf("WAITERR: %s", err)
+	}
+
+	logstring += fmt.Sprintf("OUTPUT: %s\n", string(cmdOutput.Bytes()))
+	logstring += fmt.Sprintf("STDERR: %s\n", string(cmdError.Bytes()))
+
+	if err != nil {
+		return "", fmt.Errorf("Error storing file to repository:  %s\n%s", err, logstring)
+	}
+
+	object_hash := string(cmdOutput.Bytes())
+
+	var tree_hash string
+
+	// git read-tree #branch  Need to ensure we have the correct tree?
+	cmd_read_tree := exec.Command(gitPath, "read-tree", commit.Branch)
+	cmd_read_tree.Dir = repo_path
+
+	// git clear-tree   Need to ensure we have an empty tree
+	cmd_clear_tree := exec.Command(gitPath, "read-tree", "--empty")
+	cmd_clear_tree.Dir = repo_path
+
+	// git update-index --add --cacheinfo 100644 #FILE_SHA path/file.txt registers it
+	cmd_update_index := exec.Command(gitPath, "update-index", "--add", "--cacheinfo", "100644", object_hash, path)
+	cmd_update_index.Dir = repo_path
+
+	// git write-tree create/updates the tree (directory) entries => TREE_SHA
+	cmd_write_tree := exec.Command(gitPath, "write-tree")
+	cmd_write_tree.Dir = repo_path
+
+	// If the requested branch does not exist, create it.
+	cmd_check_branch := exec.Command(gitPath, "rev-parse", "--verify", commit.Branch)
+	cmd_check_branch.Dir = repo_path
+
+	// Protected by mutex
+		var staging_mutex = &sync.Mutex{}
+
+
+		/* The next part has to be atomic, due to git only having one index/staging area */
+
+		staging_mutex.Lock()
+		defer staging_mutex.Unlock() //ensure unlocking
+
+		current_revision_byte, err := cmd_check_branch.Output()
+		current_revision := strings.TrimSpace(string(current_revision_byte))
+		logstring += fmt.Sprintf("Current revision for branch %s: %s\n", commit.Branch, current_revision)
+
+		// If branch does not exist, create first entry in empty tree
+		// TODO: Is that really what is needed? Only for master?
+		if current_revision == "" {
+			logstring += "No revision - Clearing Tree\n"
+			_,err = cmd_clear_tree.Output()
+			if err != nil {
+				return "", fmt.Errorf("Error clearing tree (%s)\n%s", err, logstring)
+			}
+		} else {
+			// Read tree for given branch
+			_, err = cmd_read_tree.Output()
+			if err != nil {
+				return "", fmt.Errorf("Error reading tree for branch %s (%s)\n%s", commit.Branch, err, logstring)
+			}
+		}
+
+		_, err = cmd_update_index.Output()
+		if err != nil {
+			return "", fmt.Errorf("Error updating index for branch %s (%s) (%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+		}
+
+		// git write-tree create/updates the tree (directory) entries => TREE_SHA
+
+		tree_hash_byte, err := cmd_write_tree.Output()
+		tree_hash = strings.TrimSpace(string(tree_hash_byte))
+
+		logstring += fmt.Sprintf("TREEHASH: <%s>\n", tree_hash)
+
+		if err != nil {
+			return "", fmt.Errorf("Error writing tree for branch %s (%s)\n%s", commit.Branch, err, logstring)
+		}
+		// staging_mutex.Unlock() // free the staging area - it is not needed for the remaining steps
+	// End mutex
+
+	// TODO: deferring the unlock does not really work... have to fix UNLOCK of UNLOCKED mutex is not good
+
+	// git commit-tree #TREE_SHA -m "Second Commit to root?" -p #PARENT_SHA
+	var cmd_commit *exec.Cmd
+	if current_revision == "" {
+		cmd_commit = exec.Command(gitPath, "commit-tree", tree_hash, "-m", fmt.Sprintf(`"%s"`, commit.Message))
+	} else {
+		cmd_commit = exec.Command(gitPath, "commit-tree", tree_hash, "-m", fmt.Sprintf(`"%s"`, commit.Message), "-p", current_revision)
+	}
+
+
+	cmd_commit.Dir = repo_path
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("GIT_COMMITTER_NAME=%s", commit.Committer.Name))
+	env = append(env, fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", commit.Committer.Email))
+	env = append(env, fmt.Sprintf("GIT_AUTHOR_NAME=%s", commit.Committer.Name))
+	env = append(env, fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", commit.Committer.Email))
+	cmd_commit.Env = env
+
+	commit_hash_byte, err := cmd_commit.Output()
+	commit_hash := strings.TrimSpace(string(commit_hash_byte))
+
+	logstring += fmt.Sprintf("Commit hash: %s", commit_hash)
+
+	if err != nil {
+		return "", fmt.Errorf("Error committing to branch %s (%s) (%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+	}
+
+
+
+
+	// Set #branch to newest commit (create branch if needed)
+	// git update-ref refs/heads/master <newvalue> <oldvalue>
+	// the git command verifies that the branch is only created if it does not exist - perhaps useless double-checking?
+	var cmd_update_ref *exec.Cmd
+	if current_revision == "" {
+		cmd_update_ref = exec.Command(gitPath, "update-ref", fmt.Sprintf("refs/heads/%s", commit.Branch), commit_hash, "")
+	} else {
+		cmd_update_ref = exec.Command(gitPath, "update-ref", fmt.Sprintf("refs/heads/%s", commit.Branch), commit_hash, current_revision)
+	}
+
+	cmd_update_ref.Dir = repo_path
+
+	_, err = cmd_update_ref.Output()
+
+	if err != nil {
+		return "", fmt.Errorf("Error creating/updating branch %s (%s)\n(%s)\n%s", commit.Branch, err, err.(*exec.ExitError).Stderr, logstring)
+	}
+
+	//return "", fmt.Errorf("Error creating/updating branch %s (%s)\n(%s)\n%s", commit.Branch, err, "", logstring)
+
+	return commit_hash, nil
+	//return nil, fmt.Errorf(logstring+"Succeeded?")  //TODO: return ref!
+}
+
 func (*GitContentRetriever) Push(cloneDir, branch string) error {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
@@ -847,14 +1165,26 @@ func GetFileContents(repo, ref, path string) ([]byte, error) {
 	return retriever().GetContents(repo, ref, path)
 }
 
+// SetFileContents uploads and commits the contents for a given file
+// in a given ref for the specified repository
+func SetFileContents(repo, path string, content []byte, commit GitCommit) (string, error) {
+	return retriever().SetContents(repo, path, content, commit)
+}
+
+// DeleteFile removes a file from the repository (not from history!) and commits the removal
+// in a given ref for the specified repository
+func DeleteFile(repo, path string, commit GitCommit) (string, error) {
+	return retriever().DeleteFile(repo, path, commit)
+}
+
 // GetArchive returns the contents for a given file
 // in a given ref for the specified repository
 func GetArchive(repo, ref string, format ArchiveFormat) ([]byte, error) {
 	return retriever().GetArchive(repo, ref, format)
 }
 
-func GetTree(repo, ref, path string) ([]map[string]string, error) {
-	return retriever().GetTree(repo, ref, path)
+func GetTree(repo, ref, path, mode string) ([]map[string]string, error) {
+	return retriever().GetTree(repo, ref, path, mode)
 }
 
 func GetForEachRef(repo, pattern string) ([]Ref, error) {
