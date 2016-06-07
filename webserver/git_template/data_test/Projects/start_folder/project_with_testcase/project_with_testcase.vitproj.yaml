@@ -1,0 +1,8 @@
+Project:
+  filename: project_with_testcase
+  description: My first project that contains a test case
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_folder
+  uuid: e806a6d8-63f9-47ef-aecc-3ba40a948b94
+  name: A project with a testcase
+  type: Project
+Data: {}

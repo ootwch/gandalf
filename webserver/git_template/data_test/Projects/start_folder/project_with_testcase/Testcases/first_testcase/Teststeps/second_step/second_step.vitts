@@ -1,0 +1,10 @@
+[Teststep]
+uuid = 5ef3d2e6-14cc-4c31-9a31-d1f7f2233b22
+name = my first dummy step
+description = A step that does nothign (2)
+type = Teststep
+steptype = 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b11
+
+[Data]
+delay = 5000
+othervalue = 2000

@@ -1,0 +1,10 @@
+TeststepType:
+  frontend_file: fe/dummy_step2.html
+  filename: dummy_step2
+  description: A Global Test Step type that does nothing
+  frontend_element: vitruvius-dummy-step2
+  folder: /home/oberon/Development/Vitruvius/data_test/Plugins/TestStepTypes
+  uuid: 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b11
+  name: Second Dummy Step Type
+  type: TeststepType
+Data: {}

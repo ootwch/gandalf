@@ -1,0 +1,10 @@
+Teststep:
+  description: ''
+  type: Teststep
+  folder: /home/oberon/Development/Vitruvius/data/Projects/start_project2/Testcases/test_case_two/Teststeps
+  uuid: 6899cbb7-818d-4e70-aee7-6ad66e7c062c
+  name: New <Delay Step> Step
+  filename: new-delay-step-step
+  steptype: dcb52779-b68a-4f69-8315-8b6f0907e21c
+Data:
+  delay: 1.5

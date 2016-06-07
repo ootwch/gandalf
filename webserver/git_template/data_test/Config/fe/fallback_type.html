@@ -1,0 +1,65 @@
+<head>
+<link rel="import" href="/static/lib/bower_components/polymer/polymer.html"/>
+<link rel="import" href="/static/lib/bower_components/paper-input/all-imports.html">
+    <meta something="or other"/>
+    <meta module-name="fallback-type"/>
+    <meta name="fallback-type"/>
+</head>
+
+
+
+<dom-module id="fallback-type">
+
+    <template>
+        <h3>Test Step Type </h3>
+        <div>Fallback because test type definition has not been loaded. Verify your configuration!</div>
+
+        <h2>Configuration Data</h2>
+        <json-stringify variable="{{configdata}}"></json-stringify>
+        <template is="dom-repeat" items="{{_toArray(configdata)}}">
+            <paper-item >
+                <paper-item-body>
+                    <paper-input label="{{item.name}}" value="{{item.value}}"></paper-input>
+                </paper-item-body>
+            </paper-item>
+        </template>
+
+        <h2>Test Step Data</h2>
+        <json-stringify variable="{{data}}"></json-stringify>
+        <template is="dom-repeat" items="{{_toArray(data)}}">
+
+            <paper-item >
+                <paper-item-body>
+                    <paper-input disabled label="{{item.name}}" value="{{item.value}}"></paper-input>
+                </paper-item-body>
+            </paper-item>
+        </template>
+
+    </template>
+
+    <script>
+        Polymer({
+        is: "fallback-type",
+        properties: {
+            data:{
+             type: Object,
+             notify: true
+            },
+            configdata:{
+            type: Object,
+            notfiy: true
+            }
+
+        },
+        _toArray: function(obj) {
+            return Object.keys(obj).map(function(key) {
+                return {name: key, value: obj[key]};
+            });
+        }
+        });
+
+    </script>
+
+</dom-module>
+
+

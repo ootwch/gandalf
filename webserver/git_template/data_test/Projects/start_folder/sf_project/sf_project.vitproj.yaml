@@ -1,0 +1,8 @@
+Project:
+  filename: sf_project
+  description: For Subfolder Testing only
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_folder
+  uuid: 65e8113a-5813-42e7-b15c-4e69fbf9ef0f
+  name: test subfolder project name
+  type: Project
+Data: {}

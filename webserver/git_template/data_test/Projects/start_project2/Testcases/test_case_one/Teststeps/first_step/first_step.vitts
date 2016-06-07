@@ -1,0 +1,11 @@
+[Teststep]
+uuid = 5ef3d2e6-14cc-4c31-9a31-d1f7ff733b83
+name = my first teststep
+description = My very first test step
+type = Teststep
+steptype = 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b83
+next = 5ef3d2e6-14cc-4c31-9a31-d1f7f2233b83
+
+[Data]
+arbitrary_data = Hello world
+

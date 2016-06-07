@@ -1,0 +1,10 @@
+Teststep:
+  filename: first_step
+  description: My very first test step
+  steptype: 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b83
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_project2/Testcases/test_case_one/Teststeps
+  uuid: 5ef3d2e6-14cc-4c31-9a31-d1f7ff733b83
+  name: my first teststep
+  type: Teststep
+Data:
+  arbitrary_data: Hello+world

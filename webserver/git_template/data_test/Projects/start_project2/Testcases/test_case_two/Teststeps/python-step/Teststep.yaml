@@ -1,0 +1,11 @@
+Teststep:
+  _sort_key: 119.0
+  type: Teststep
+  description: ''
+  steptype: 1e41a320-0c39-4936-85f6-9a56532665e6
+  filename: new-python-step-step
+  folder: /home/oberon/Development/Vitruvius/data/Projects/start_project2/Testcases/test_case_one/Teststeps
+  name: New <Python Step> Step
+  uuid: f556e272-b472-4371-b531-c79673022b8e
+Data:
+  script: "for i in ['Hello', 'World']: print(i)\nresponse = 'Hello World from my Test Step!'"

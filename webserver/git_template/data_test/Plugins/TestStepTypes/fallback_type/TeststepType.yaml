@@ -1,0 +1,9 @@
+TeststepType:
+  frontend_file: fe/fallback_type.html
+  filename: fallback_type
+  description: Test Step Type not found
+  folder: /home/oberon/Development/Vitruvius/data_test/Plugins/TestStepTypes
+  uuid: 5ef3d000-14cc-4c31-9a41-d1f7ff733b11
+  name: Fallback - Test Step Type not found
+  type: TeststepType
+Data: {}

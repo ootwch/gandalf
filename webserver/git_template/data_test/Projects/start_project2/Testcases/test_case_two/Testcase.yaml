@@ -1,0 +1,8 @@
+Testcase:
+  filename: test_case_two
+  description: A second artificial testcase
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_project2/Testcases
+  uuid: 850431bb-4a07-4c76-9999-70557475eb88
+  name: SECOND ARTIFICIAL TESTCASE
+  type: Testcase
+Data: {}

@@ -1,0 +1,9 @@
+Data: {}
+TeststepType:
+  description: A test step type that executes python code
+  type: TeststepType
+  name: Python Step
+  uuid: 1e41a320-0c39-4936-85f6-9a56532665e6
+  frontend_file: fe/python_editor.html
+  backend_file: be/python_exec_backend.py
+  filename: python_type

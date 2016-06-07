@@ -1,0 +1,39 @@
+<head>
+<link rel="import" href="/static/lib/bower_components/polymer/polymer.html"/>
+    <meta something="or other"/>
+    <meta module-name="vitruvius-dummy-step"/>
+    <meta name="Name of this dummy step"/>
+</head>
+
+
+<module-name>vitruvius-dummy-step</module-name>
+
+<dom-module id="vitruvius-dummy-step">
+
+    <template>
+        <h3>Dummy Step Frontend</h3>
+	<div class="test_step">
+    	<span>{{configdata.name}}</span> of type (<span>{{configdata.type}}</span>)
+    	<div class="test_step_description">
+    		<span>{{configdata.description}}</span>
+    </div>
+</div>
+    </template>
+
+    <script>
+        Polymer({
+        is: "vitruvius-dummy-step",
+        properties: {
+            data:{
+             type: Object,
+             notify: true
+            }
+
+        }
+        });
+
+    </script>
+
+</dom-module>
+
+

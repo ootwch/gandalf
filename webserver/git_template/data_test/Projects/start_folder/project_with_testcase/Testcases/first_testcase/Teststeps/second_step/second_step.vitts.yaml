@@ -1,0 +1,11 @@
+Teststep:
+  filename: second_step
+  description: A step that does nothign (2)
+  steptype: 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b11
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_folder/project_with_testcase/Testcases/first_testcase/Teststeps
+  uuid: 5ef3d2e6-14cc-4c31-9a31-d1f7f2233b22
+  name: my first dummy step
+  type: Teststep
+Data:
+  othervalue: '2000'
+  delay: '5000'

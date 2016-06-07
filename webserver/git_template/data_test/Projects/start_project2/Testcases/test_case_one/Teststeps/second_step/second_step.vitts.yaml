@@ -1,0 +1,10 @@
+Teststep:
+  filename: second_step
+  description: A step that does nothign
+  steptype: 5ef3d2e6-14cc-4c31-9a41-d1f7ff733b11
+  folder: /home/oberon/Development/Vitruvius/data_test/Projects/start_project2/Testcases/test_case_one/Teststeps
+  uuid: 5ef3d2e6-14cc-4c31-9a31-d1f7f2233b83
+  name: my first dummy step
+  type: Teststep
+Data:
+  small: world
