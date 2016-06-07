@@ -397,6 +397,7 @@ var Retriever ContentRetriever
 type GitContentRetriever struct{}
 
 func (*GitContentRetriever) GetContents(repo, ref, path string) ([]byte, error) {
+	log.Debugf("Reading file %q", path)
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
 		return nil, fmt.Errorf("Error running git (%s) (%s).", err, err.(*exec.ExitError).Stderr)
@@ -701,6 +702,7 @@ func (*GitContentRetriever) Commit(cloneDir, message string, author, committer G
 func (*GitContentRetriever) DeleteFile(repo, path string, commit GitCommit) (string, error) {
 
 	logstring := "File to be deleted: " + "path" + "\n"
+	log.Debugf("Delete File %q", path)
 
 	gitPath, err := exec.LookPath("git")
 	repo_path := barePath(repo)
@@ -839,6 +841,9 @@ func (*GitContentRetriever) SetContents(repo, path string, content []byte, commi
 
 	logstring := gitPath + " " + repo_path + " " + string(content) + "\n"
 	logstring += "Starting SetContents\n"
+
+    log.Debugf("Create/Update file %q", gitPath)
+
 
 	cmdOutput := &bytes.Buffer{}
 	cmdError := &bytes.Buffer{}
