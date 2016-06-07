@@ -11,7 +11,7 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/api"
+	"github.com/ootwch/gandalf/api"
 	"github.com/tsuru/tsuru/log"
 )
 
