@@ -13,9 +13,9 @@ import (
 
 	"github.com/tsuru/commandmocker"
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/repository"
-	"github.com/tsuru/gandalf/user"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/repository"
+	"github.com/ootwch/gandalf/user"
 	"gopkg.in/check.v1"
 	"gopkg.in/mgo.v2/bson"
 )

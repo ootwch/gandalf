@@ -10,7 +10,7 @@ import (
 	"path"
 
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/fs"
+	"github.com/ootwch/gandalf/fs"
 )
 
 var bare string

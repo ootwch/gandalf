@@ -18,11 +18,11 @@ import (
 
 	"github.com/gorilla/pat"
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/hook"
-	"github.com/tsuru/gandalf/multipartzip"
-	"github.com/tsuru/gandalf/repository"
-	"github.com/tsuru/gandalf/user"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/hook"
+	"github.com/ootwch/gandalf/multipartzip"
+	"github.com/ootwch/gandalf/repository"
+	"github.com/ootwch/gandalf/user"
 )
 
 var maxMemory uint

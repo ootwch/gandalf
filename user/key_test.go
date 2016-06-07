@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/db"
+	"github.com/ootwch/gandalf/db"
 	"gopkg.in/check.v1"
 	"gopkg.in/mgo.v2/bson"
 )

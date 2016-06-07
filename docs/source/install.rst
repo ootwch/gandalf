@@ -50,7 +50,7 @@ You can download the sample configuration file from Github:
 
 ::
 
-    $ [sudo] curl -sL https://raw.github.com/tsuru/gandalf/master/etc/gandalf.conf -o /etc/gandalf.conf
+    $ [sudo] curl -sL https://raw.github.com/ootwch/gandalf/master/etc/gandalf.conf -o /etc/gandalf.conf
 
 Starting
 --------

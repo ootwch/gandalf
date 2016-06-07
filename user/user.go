@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/repository"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/repository"
 	"github.com/tsuru/tsuru/log"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"

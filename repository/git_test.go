@@ -10,7 +10,7 @@ import (
 
 	"github.com/tsuru/commandmocker"
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/fs"
+	"github.com/ootwch/gandalf/fs"
 	"github.com/tsuru/tsuru/fs/fstest"
 	"gopkg.in/check.v1"
 )

@@ -7,8 +7,8 @@ package api
 import (
 	"fmt"
 
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/user"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/user"
 	"gopkg.in/mgo.v2/bson"
 )
 

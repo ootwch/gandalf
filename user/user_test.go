@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/fs"
-	"github.com/tsuru/gandalf/repository"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/fs"
+	"github.com/ootwch/gandalf/repository"
 	"github.com/tsuru/tsuru/fs/fstest"
 	"gopkg.in/check.v1"
 	"gopkg.in/mgo.v2/bson"

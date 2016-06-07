@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/tsuru/config"
-	"github.com/tsuru/gandalf/db"
-	"github.com/tsuru/gandalf/fs"
+	"github.com/ootwch/gandalf/db"
+	"github.com/ootwch/gandalf/fs"
 	tsurufs "github.com/tsuru/tsuru/fs"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/mgo.v2"

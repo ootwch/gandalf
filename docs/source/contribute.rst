@@ -2,8 +2,8 @@
 Contribute
 ==========
 
-* Source hosted at `GitHub <http://github.com/tsuru/gandalf>`_
-* Report issues on `GitHub Issues <http://github.com/tsuru/gandalf/issues>`_
+* Source hosted at `GitHub <http://github.com/ootwch/gandalf>`_
+* Report issues on `GitHub Issues <http://github.com/ootwch/gandalf/issues>`_
 
 Pull requests are very welcome! Make sure your patches are well tested and documented :)
 

@@ -14,8 +14,8 @@ import (
 	"sync"
 
 	"github.com/gorilla/pat"
-	"github.com/tsuru/gandalf/repository"
-	"github.com/tsuru/gandalf/user"
+	"github.com/ootwch/gandalf/repository"
+	"github.com/ootwch/gandalf/user"
 	"github.com/tsuru/tsuru/errors"
 	"golang.org/x/crypto/ssh"
 )
