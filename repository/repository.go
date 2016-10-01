@@ -390,6 +390,10 @@ type ContentRetriever interface {
 	Push(cloneDir, branch string) error
 	CommitZip(repo string, z *multipart.FileHeader, c GitCommit) (*Ref, error)
 	GetLogs(repo, hash string, total int, path string) (*GitHistory, error)
+
+	// Vitruvius specific tree
+	GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error)
+
 }
 
 var Retriever ContentRetriever
@@ -1157,6 +1161,66 @@ func (*GitContentRetriever) GetLogs(repo, hash string, total int, path string) (
 	return &history, nil
 }
 
+
+// Vitruvius-specific tree
+// Returns {Path, Name, isDir=False, GUID, Name, Description} or {Path, Name, isDir=True, [...]}
+func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error) {
+
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return nil, fmt.Errorf("Error when trying to find tree %s on ref %s of repository %s (%s).", path, ref, repo, err)
+	}
+	cwd := barePath(repo)
+	repoExists, err := exists(cwd)
+	if err != nil || !repoExists {
+		return nil, fmt.Errorf("Error when trying to obtain tree %s on ref %s of repository %s (Repository does not exist).", path, ref, repo)
+	}
+	var tree_parameter string
+	if strings.Contains(mode, "tree") {
+		tree_parameter = "-rt" // also show tree objects
+	} else {
+		tree_parameter = "-r" // default
+	}
+
+	cmd := exec.Command(gitPath, "ls-tree", tree_parameter, ref, path) // also show tree objects
+
+	cmd.Dir = cwd
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("Error when trying to execute ls-tree %s in %s on ref %s of repository %s (%s). '%s'", path, cmd.Dir, ref, repo, err, err.Error())
+	}
+	log.Debugf("tree_parameter: %s ref: %s path: %s", tree_parameter, ref, path)
+	lines := strings.Split(string(out), "\n")
+	objectCount := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		objectCount++
+	}
+	objects := make([]map[string]string, objectCount)
+	objectCount = 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		tabbed := strings.Split(line, "\t")
+		meta, filepath := tabbed[0], tabbed[1]
+		meta_parts := strings.Split(meta, " ")
+		permission, filetype, hash := meta_parts[0], meta_parts[1], meta_parts[2]
+		object := make(map[string]string)
+		object["permission"] = permission
+		object["filetype"] = filetype
+		object["hash"] = hash
+		object["path"] = strings.TrimSpace(strings.Trim(filepath, "\""))
+		object["rawPath"] = filepath
+		objects[objectCount] = object
+		objectCount++
+	}
+	return objects, nil
+}
+
+
 func retriever() ContentRetriever {
 	if Retriever == nil {
 		Retriever = &GitContentRetriever{}
@@ -1242,4 +1306,10 @@ type InvalidRepositoryError struct {
 
 func (err *InvalidRepositoryError) Error() string {
 	return err.message
+}
+
+// Vitruvius specific tree function
+
+func GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error) {
+	return retriever().GetTreeVitruvius(repo, ref, path, mode)
 }

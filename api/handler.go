@@ -82,6 +82,10 @@ func SetupRouter() *pat.Router {
 	router.Get("/healthcheck", http.HandlerFunc(healthCheck))
 	router.Post("/hook/{name}", http.HandlerFunc(addHook))
 
+	// Get Vitruvius-specific tree
+	router.Get("/repository/{name:[^/]*/?[^/]+}/tree_vitruvius", http.HandlerFunc(getTreeVitruvius))
+
+
 	return router
 }
 
@@ -836,6 +840,36 @@ func getLogs(w http.ResponseWriter, r *http.Request) {
 	b, err := json.Marshal(logs)
 	if err != nil {
 		err = fmt.Errorf("Error when trying to obtain logs for ref %s of repository %s (%s).", ref, repo, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(b)
+}
+
+func getTreeVitruvius(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get(":name")
+	path := r.URL.Query().Get("path")
+	ref := r.URL.Query().Get("ref")
+	mode := r.URL.Query().Get("mode")
+
+	if ref == "" {
+		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s). %s", path, ref, repo, "ref missing", r.URL.String())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+		// ref = "master"
+	}
+	if path == "" {
+		path = "."
+	}
+	tree, err := repository.GetTreeVitruvius(repo, ref, path, mode)
+	if err != nil {
+		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	b, err := json.Marshal(tree)
+	if err != nil {
+		err := fmt.Errorf("Error when trying to marshal tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
