@@ -1,0 +1,28 @@
+version: '2'
+services:
+
+  gandalf-mongodb:
+    image: mongo
+    ports:
+      - "27017:27017"
+
+  gandalf:
+    image: golang
+    ports:
+      - "8000:8000"  # published externally so it is accessible from the desktop IDE
+    links:
+      - gandalf-mongodb:mongodb
+    volumes:
+      - gandalf-repository:/var/lib/gandalf/repositories
+      - /c/Users/KurtG/Documents/Development/Own_Projects/gandalf:/go/src/github.com/ootwch/gandalf
+      #-  ~/Documents/Development/Own_Projects/Git Experiments/gandalf:/var/lib/gandalf/repositories
+    environment:
+     - GOPATH=/go
+    # command: sh -c "go run /opt/src/github.com/tsuru/gandalf/webserver/main.go -config gandalf.conf"
+    # command: sh -v -x -c "CGO_ENABLED=0 go build -a -x  -installsuffix cgo github.com/tsuru/gandalf/webserver/;pwd;ls -l;cd /opt/src/github.com/tsuru/gandalf/webserver/;pwd;ls -l;./webserver  -config gandalf.conf"
+    command: sh -c "go get gopkg.in/yaml.v2; cd /go/src/github.com/ootwch; ls -al;cd /go/src/github.com/ootwch/gandalf/webserver/;go run main.go  -config /go/src/github.com/ootwch/gandalf/local_test/gandalf.conf"
+    # command: sh -c "go get -d github.com/ootwch/gandalf/...;cd /go/src/github.com/ootwch/gandalf/webserver/;go run main.go  -config /go/src/github.com/ootwch/gandalf/webserver/gandalf.conf"
+
+
+volumes:
+  gandalf-repository:
