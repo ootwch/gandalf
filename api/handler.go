@@ -67,6 +67,10 @@ func SetupRouter() *pat.Router {
 	router.Get("/repository/{name:[^/]*/?[^/]+}/archive", http.HandlerFunc(getArchive))
 	router.Get("/repository/{name:[^/]*/?[^/]+}/contents", http.HandlerFunc(getFileContents))
 	router.Get("/repository/{name:[^/]*/?[^/]+}/tree", http.HandlerFunc(getTree))
+
+	// Get Vitruvius-specific tree
+	router.Get("/repository/{name:[^/]*/?[^/]+}/vitruvius_tree", http.HandlerFunc(getTreeVitruvius))
+
 	router.Get("/repository/{name:[^/]*/?[^/]+}/branches", http.HandlerFunc(getBranches))
 	router.Get("/repository/{name:[^/]*/?[^/]+}/tags", http.HandlerFunc(getTags))
 	router.Get("/repository/{name:[^/]*/?[^/]+}/diff/commits", http.HandlerFunc(getDiff))
@@ -81,9 +85,6 @@ func SetupRouter() *pat.Router {
 	router.Put("/repository/{name:[^/]*/?[^/]+}", http.HandlerFunc(updateRepository))
 	router.Get("/healthcheck", http.HandlerFunc(healthCheck))
 	router.Post("/hook/{name}", http.HandlerFunc(addHook))
-
-	// Get Vitruvius-specific tree
-	router.Get("/repository/{name:[^/]*/?[^/]+}/tree_vitruvius", http.HandlerFunc(getTreeVitruvius))
 
 
 	return router
@@ -852,6 +853,9 @@ func getTreeVitruvius(w http.ResponseWriter, r *http.Request) {
 	ref := r.URL.Query().Get("ref")
 	mode := r.URL.Query().Get("mode")
 
+	var typefiles []string
+	typefiles = r.URL.Query()["typefiles"]
+
 	if ref == "" {
 		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s). %s", path, ref, repo, "ref missing", r.URL.String())
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -861,15 +865,15 @@ func getTreeVitruvius(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		path = "."
 	}
-	tree, err := repository.GetTreeVitruvius(repo, ref, path, mode)
+	tree, err := repository.GetTreeVitruvius(repo, ref, path, mode, typefiles)
 	if err != nil {
-		err := fmt.Errorf("Error when trying to obtain tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		err := fmt.Errorf("Error when trying to obtain vit tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	b, err := json.Marshal(tree)
 	if err != nil {
-		err := fmt.Errorf("Error when trying to marshal tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
+		err := fmt.Errorf("Error when trying to marshal vit tree for path %s on ref %s of repository %s (%s).", path, ref, repo, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

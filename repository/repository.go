@@ -25,6 +25,7 @@ import (
 	"github.com/tsuru/tsuru/log"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"gopkg.in/yaml.v2"
 )
 
 var tempDir string
@@ -392,7 +393,7 @@ type ContentRetriever interface {
 	GetLogs(repo, hash string, total int, path string) (*GitHistory, error)
 
 	// Vitruvius specific tree
-	GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error)
+	GetTreeVitruvius(repo, ref, path, mode string, typefiles []string) ([]Leaf, error)
 
 }
 
@@ -473,7 +474,7 @@ func (*GitContentRetriever) GetTree(repo, ref, path, mode string) ([]map[string]
 	if err != nil {
 		return nil, fmt.Errorf("Error when trying to execute ls-tree %s in %s on ref %s of repository %s (%s). '%s'", path, cmd.Dir, ref, repo, err, err.Error())
 	}
-	log.Debugf("tree_parameter: %s ref: %s path: %s", tree_parameter, ref, path)
+	log.Debugf("git tree_parameter: %s ref: %s path: %s", tree_parameter, ref, path)
 	lines := strings.Split(string(out), "\n")
 	objectCount := 0
 	for _, line := range lines {
@@ -1163,8 +1164,92 @@ func (*GitContentRetriever) GetLogs(repo, hash string, total int, path string) (
 
 
 // Vitruvius-specific tree
+
+
+type Leaf struct {
+	Permission, Filetype, Hash, Path, RawPath string
+	Object_identifier, Object_type, Object_name, Object_description string
+	Children []Leaf
+
+}
+
+
 // Returns {Path, Name, isDir=False, GUID, Name, Description} or {Path, Name, isDir=True, [...]}
-func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error) {
+func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string, typefiles []string) ([]Leaf, error) {
+
+	var err	error
+	var objects []Leaf
+	log.Debugf("Getting Vit-Tree %q", path)
+	objects, err = treebuilder(repo, ref, path, typefiles)
+	return objects, err
+}
+
+func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
+
+	type T map[string]string
+
+	var inner_dir []Leaf
+	yaml_object := map[string]interface{}{}
+
+	objects, err := listdir(repo, ref, path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for lineno, line := range objects {
+		if line.Filetype=="tree" {
+			inner_dir, err = treebuilder(repo, ref, path + "/" + line.Path + "/", typefiles)
+			if err != nil {
+				return nil, err
+			}
+			if len(inner_dir)>0 {
+				objects[lineno].Children = inner_dir
+
+
+				// If matching data is available enrich the tree object with info from the yaml file
+				for _, o := range(inner_dir) {
+					for _, typefile := range(typefiles) {
+						if strings.HasSuffix(o.Path, typefile) {
+							gitPath, err := exec.LookPath("git")
+							cmd := exec.Command(gitPath, "show", fmt.Sprintf("%s:%s", ref, o.Path))
+							cwd := barePath(repo)
+							cmd.Dir = cwd
+							out, err := cmd.Output()
+							if err != nil {
+								return nil, fmt.Errorf("Error when trying to obtain file %s on ref %s of repository %s (%s) (%s).", path, ref, repo, err, err.(*exec.ExitError).Stderr,)
+							}
+
+							yaml.Unmarshal([]byte(out), &yaml_object)
+
+							for _,v := range(yaml_object){
+
+								for key, value := range(v.(map[interface{}]interface{})) {
+									switch  {
+									case key == "uuid":
+										line.Object_identifier = value.(string)
+									case key == "description":
+										line.Object_description = value.(string)
+									case key == "name":
+										line.Object_name = value.(string)
+									case key=="type":
+										line.Object_type = value.(string)
+									}
+								}
+							}
+
+
+						}
+					}
+				}
+			}
+		}
+	objects[lineno] = line
+	}
+	return objects, err
+}
+
+func listdir(repo, ref, path string) ([]Leaf, error) {
 
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
@@ -1175,21 +1260,21 @@ func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string) ([]ma
 	if err != nil || !repoExists {
 		return nil, fmt.Errorf("Error when trying to obtain tree %s on ref %s of repository %s (Repository does not exist).", path, ref, repo)
 	}
-	var tree_parameter string
-	if strings.Contains(mode, "tree") {
-		tree_parameter = "-rt" // also show tree objects
-	} else {
-		tree_parameter = "-r" // default
-	}
+	//var tree_parameter string
 
-	cmd := exec.Command(gitPath, "ls-tree", tree_parameter, ref, path) // also show tree objects
+	//tree_parameter = "" // do not recurse
+	cmd := exec.Command(gitPath, "ls-tree", ref, path) // also show tree objects
 
 	cmd.Dir = cwd
 	out, err := cmd.Output()
 	if err != nil {
+		log.Debugf("Command: %v", cmd)
+		log.Debugf("Output: %v", out)
+		log.Debugf("Error: %v", err)
+
 		return nil, fmt.Errorf("Error when trying to execute ls-tree %s in %s on ref %s of repository %s (%s). '%s'", path, cmd.Dir, ref, repo, err, err.Error())
 	}
-	log.Debugf("tree_parameter: %s ref: %s path: %s", tree_parameter, ref, path)
+	//log.Debugf("tree_parameter in listdir: %s ref: %s path: %s", tree_parameter, ref, path)
 	lines := strings.Split(string(out), "\n")
 	objectCount := 0
 	for _, line := range lines {
@@ -1198,7 +1283,7 @@ func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string) ([]ma
 		}
 		objectCount++
 	}
-	objects := make([]map[string]string, objectCount)
+	objects := make([]Leaf, objectCount)
 	objectCount = 0
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
@@ -1208,18 +1293,17 @@ func (*GitContentRetriever) GetTreeVitruvius(repo, ref, path, mode string) ([]ma
 		meta, filepath := tabbed[0], tabbed[1]
 		meta_parts := strings.Split(meta, " ")
 		permission, filetype, hash := meta_parts[0], meta_parts[1], meta_parts[2]
-		object := make(map[string]string)
-		object["permission"] = permission
-		object["filetype"] = filetype
-		object["hash"] = hash
-		object["path"] = strings.TrimSpace(strings.Trim(filepath, "\""))
-		object["rawPath"] = filepath
+		var object Leaf
+		object.Permission = permission
+		object.Filetype = filetype
+		object.Hash = hash
+		object.Path = strings.TrimSpace(strings.Trim(filepath, "\""))
+		object.RawPath = filepath
 		objects[objectCount] = object
 		objectCount++
 	}
 	return objects, nil
 }
-
 
 func retriever() ContentRetriever {
 	if Retriever == nil {
@@ -1310,6 +1394,6 @@ func (err *InvalidRepositoryError) Error() string {
 
 // Vitruvius specific tree function
 
-func GetTreeVitruvius(repo, ref, path, mode string) ([]map[string]string, error) {
-	return retriever().GetTreeVitruvius(repo, ref, path, mode)
+func GetTreeVitruvius(repo, ref, path, mode string, typefiles []string) ([]Leaf, error) {
+	return retriever().GetTreeVitruvius(repo, ref, path, mode, typefiles)
 }
