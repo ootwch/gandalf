@@ -1199,11 +1199,13 @@ func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
 
 	for lineno, line := range objects {
 		if line.Filetype=="tree" {
+			log.Debugf("%q is a tree object", line.Path)
 			inner_dir, err = treebuilder(repo, ref, path + "/" + line.Path + "/", typefiles)
 			if err != nil {
 				return nil, err
 			}
 			if len(inner_dir)>0 {
+				log.Debugf("%q is a tree object with children", line.Path)
 				objects[lineno].Children = inner_dir
 
 
