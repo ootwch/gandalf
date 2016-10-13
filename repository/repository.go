@@ -1165,11 +1165,20 @@ func (*GitContentRetriever) GetLogs(repo, hash string, total int, path string) (
 
 // Vitruvius-specific tree
 
-
+// Leaf element
+// The tags define the keys used in JSON
 type Leaf struct {
-	Permission, Filetype, Hash, Path, RawPath string
-	Object_identifier, Object_type, Object_name, Object_description string
-	Children []Leaf
+	Permission string `json:"permission"`
+	Filetype string `json:"filetype"`
+	Hash string `json:"hash"`
+	Path string `json:"path"`
+	RawPath string `json:"rawPath"`
+	Object_identifier string `json:"object_identifier"`
+	Object_type string `json:"object_type"`
+	Object_name string `json:"object_name"`
+	Object_description string `json:"object_description"`
+	Object_configfile string `json:"object_configfile"`
+	Children []Leaf `json:"children"`
 
 }
 
@@ -1199,16 +1208,18 @@ func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
 
 	for lineno, line := range objects {
 		if line.Filetype=="tree" {
-			log.Debugf("%q is a tree object", line.Path)
-			inner_dir, err = treebuilder(repo, ref, path + "/" + line.Path + "/", typefiles)
+			// log.Debugf("%q is a tree object", line.Path)
+//			inner_dir, err = treebuilder(repo, ref, path + "/" + line.Path + "/", typefiles)
+			inner_dir, err = treebuilder(repo, ref, line.Path + "/", typefiles)
+
 			if err != nil {
 				return nil, err
 			}
 			if len(inner_dir)>0 {
-				log.Debugf("%q is a tree object with children", line.Path)
+				// log.Debugf("%q is a tree object with children", line.Path)
 				objects[lineno].Children = inner_dir
 
-
+				// log.Debugf("inner dir: %+#v", inner_dir)
 				// If matching data is available enrich the tree object with info from the yaml file
 				for _, o := range(inner_dir) {
 					for _, typefile := range(typefiles) {
@@ -1223,19 +1234,31 @@ func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
 							}
 
 							yaml.Unmarshal([]byte(out), &yaml_object)
+							//log.Debugf("yaml is: %#v", yaml_object)
 
-							for _,v := range(yaml_object){
+							for top_key,v := range(yaml_object){
+								if v != nil {
+									//log.Debugf("object is: %#v", v)
+									for key, value := range (v.(map[interface{}]interface{})) {
+										switch  {
+										case key == "uuid":
+											objects[lineno].Object_identifier = value.(string)
+											objects[lineno].Object_type = top_key
+											objects[lineno].Object_configfile = o.Path
 
-								for key, value := range(v.(map[interface{}]interface{})) {
-									switch  {
-									case key == "uuid":
-										line.Object_identifier = value.(string)
-									case key == "description":
-										line.Object_description = value.(string)
-									case key == "name":
-										line.Object_name = value.(string)
-									case key=="type":
-										line.Object_type = value.(string)
+										case key == "description":
+											objects[lineno].Object_description = value.(string)
+										case key == "name":
+											objects[lineno].Object_name = value.(string)
+										//case key == "type":
+										//	objects[lineno].Object_type = value.(string)
+										}
+									}
+									if objects[lineno].Object_name == "My First Playground" {
+										log.Debugf("object is: %#v\n\n\n", v)
+										log.Debugf("out: %q\n\n\n", out)
+
+
 									}
 								}
 							}
@@ -1246,7 +1269,7 @@ func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
 				}
 			}
 		}
-	objects[lineno] = line
+	//objects[lineno] = line
 	}
 	return objects, err
 }
@@ -1276,7 +1299,9 @@ func listdir(repo, ref, path string) ([]Leaf, error) {
 
 		return nil, fmt.Errorf("Error when trying to execute ls-tree %s in %s on ref %s of repository %s (%s). '%s'", path, cmd.Dir, ref, repo, err, err.Error())
 	}
-	//log.Debugf("tree_parameter in listdir: %s ref: %s path: %s", tree_parameter, ref, path)
+
+	log.Debugf("Output: %q", out)
+	log.Debugf("tree_parameter in listdir: ref: %s path: %s", ref, path)
 	lines := strings.Split(string(out), "\n")
 	objectCount := 0
 	for _, line := range lines {
@@ -1304,6 +1329,9 @@ func listdir(repo, ref, path string) ([]Leaf, error) {
 		objects[objectCount] = object
 		objectCount++
 	}
+	log.Debugf("lines: %v", lines)
+	log.Debugf("objects: %v", objects)
+
 	return objects, nil
 }
 
