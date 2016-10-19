@@ -1239,19 +1239,23 @@ func treebuilder(repo, ref, path string, typefiles []string) ([]Leaf, error) {
 							for top_key,v := range(yaml_object){
 								if v != nil {
 									//log.Debugf("object is: %#v", v)
-									for key, value := range (v.(map[interface{}]interface{})) {
-										switch  {
-										case key == "uuid":
-											objects[lineno].Object_identifier = value.(string)
-											objects[lineno].Object_type = top_key
-											objects[lineno].Object_configfile = o.Path
+									switch v := v.(type) {
+									default:  // Ignore types we do not expect
+									case map[interface{}]interface{}:
+										for key, value := range (v) {
+											switch  {
+											case key == "uuid":
+												objects[lineno].Object_identifier = value.(string)
+												objects[lineno].Object_type = top_key
+												objects[lineno].Object_configfile = o.Path
 
-										case key == "description":
-											objects[lineno].Object_description = value.(string)
-										case key == "name":
-											objects[lineno].Object_name = value.(string)
-										//case key == "type":
-										//	objects[lineno].Object_type = value.(string)
+											case key == "description":
+												objects[lineno].Object_description = value.(string)
+											case key == "name":
+												objects[lineno].Object_name = value.(string)
+											//case key == "type":
+											//	objects[lineno].Object_type = value.(string)
+											}
 										}
 									}
 									if objects[lineno].Object_name == "My First Playground" {
